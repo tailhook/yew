@@ -284,7 +284,7 @@ where
     /// which will update the state of the model and a `view` function which
     /// will render the model to a virtual DOM tree.
     pub fn mount(mut self, element: Element) {
-        clear_element(&element);
+        //clear_element(&element);
         let mut component = {
             let mut env = self.get_env();
             let mut scope_ref = env.get_ref();

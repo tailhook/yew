@@ -57,13 +57,13 @@ impl Component<Context> for Model {
 
 impl Renderable<Context, Model> for Model {
     fn view(&self) -> Html<Context, Self> {
-        let counter = |_| html! {
-            <Counter: color=&self.color, onclick=Msg::ChildClicked,/>
+        let counter = |x| html! {
+            <Counter: initial=x, color=&self.color, onclick=Msg::ChildClicked,/>
         };
         html! {
-            <div>
+            <div class="custom-components-example",>
                 <Barrier: limit=10, onsignal=|_| Msg::Repaint, />
-                { for (0..1000).map(counter) }
+                { for (1..1001).map(counter) }
             </div>
         }
     }

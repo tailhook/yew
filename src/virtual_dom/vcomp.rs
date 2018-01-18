@@ -4,7 +4,8 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::any::TypeId;
-use stdweb::web::Element;
+use stdweb::web::{INode, Element};
+use virtual_dom::{VNode, VTag, VText};
 use html::{ScopeBuilder, SharedContext, Component, Renderable, ComponentUpdate, ScopeSender, Callback, ScopeEnv};
 
 struct Hidden;
@@ -85,6 +86,7 @@ impl<CTX: 'static, COMP: Component<CTX>> VComp<CTX, COMP> {
         assert_eq!(self.type_id, other.type_id);
         // Grab a sender to reuse it later
         self.blind_sender = other.blind_sender;
+        self.reference = other.reference;
     }
 }
 
@@ -150,20 +152,44 @@ where
     CTX: 'static,
     COMP: Component<CTX> + 'static,
 {
+    /// Remove VComp from parent.
+    pub fn remove(self, _: &Element) {
+        unimplemented!();
+    }
+
     /// This methods mount a virtual component with a generator created with `lazy` call.
-    fn mount(&mut self, element: &Element, context: SharedContext<CTX>) {
-        (self.generator)(context, element.clone());
+    fn mount(&mut self, parent: &Element, context: SharedContext<CTX>) {
+        (self.generator)(context, parent.clone());
     }
 
     /// Renders independent component over DOM `Element`.
     /// It also compares this with an opposite `VComp` and inherits sender of it.
-    pub fn render(&mut self, subject: &Element, mut opposite: Option<Self>, env: ScopeEnv<CTX, COMP>) {
-        if let Some(opposite) = opposite.take() {
-            self.grab_sender_of(opposite);
-            self.send_props(env.sender());
-        } else {
-            self.send_props(env.sender());
-            self.mount(subject, env.context());
+    pub fn apply(&mut self, parent: &Element, opposite: Option<VNode<CTX, COMP>>, env: ScopeEnv<CTX, COMP>) {
+        match opposite {
+            Some(VNode::VComp(vcomp)) => {
+                if self.type_id == vcomp.type_id {
+                    self.grab_sender_of(vcomp);
+                    self.send_props(env.sender());
+                } else {
+                    if let Some(obsolete) = vcomp.reference {
+                        parent.remove_child(&obsolete).expect("can't remove previous component");
+                    }
+                    self.send_props(env.sender());
+                    self.mount(parent, env.context());
+                }
+            }
+            Some(VNode::VText(VText { reference: Some(wrong), .. })) => {
+                parent.remove_child(&wrong).expect("can't remove text to put a component");
+            }
+            Some(VNode::VTag(VTag { reference: Some(wrong), .. })) => {
+                parent.remove_child(&wrong).expect("can't remove tag to put a component");
+            }
+            Some(VNode::VText(VText { reference: None, .. })) |
+            Some(VNode::VTag(VTag { reference: None, .. })) |
+            None => {
+                self.send_props(env.sender());
+                self.mount(parent, env.context());
+            }
         }
     }
 }
